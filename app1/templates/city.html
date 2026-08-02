@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WeatherX - Explore weather</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --navy: #071b34;
+      --navy-soft: #0c2d4d;
+      --blue: #1d6eaa;
+      --sky: #73cce3;
+      --cream: #fff9ed;
+      --sun: #ffbd38;
+      --orange: #f26e32;
+      --ink: #122a43;
+      --muted: #668096;
+      --line: #d7e1e5;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      overflow-x: hidden;
+      color: white;
+      font-family: Outfit, sans-serif;
+      background: var(--navy);
+    }
+
+    /* Radar map background */
+    .radar-map {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 70% 46%, rgba(47, 170, 213, .15), transparent 25%),
+        radial-gradient(circle at 18% 100%, rgba(242, 110, 50, .2), transparent 40%),
+        linear-gradient(135deg, #06182e 0%, #0c3456 58%, #174c72 150%);
+    }
+
+    .radar-map::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      opacity: .16;
+      background-image:
+        linear-gradient(rgba(159, 224, 239, .45) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(159, 224, 239, .45) 1px, transparent 1px);
+      background-size: 72px 72px;
+      mask-image: linear-gradient(to bottom, transparent, black 22%, black 80%, transparent);
+    }
+
+    .radar-rings {
+      position: absolute;
+      top: 50%;
+      right: 8%;
+      width: min(62vw, 780px);
+      aspect-ratio: 1;
+      border: 1px solid rgba(113, 207, 233, .38);
+      border-radius: 50%;
+      transform: translateY(-50%);
+    }
+
+    .radar-rings::before,
+    .radar-rings::after {
+      content: "";
+      position: absolute;
+      border: 1px solid rgba(113, 207, 233, .3);
+      border-radius: 50%;
+    }
+
+    .radar-rings::before { inset: 16%; }
+    .radar-rings::after { inset: 32%; }
+
+    .scan-line {
+      position: absolute;
+      top: 50%;
+      right: calc(8% + min(31vw, 390px));
+      width: min(31vw, 390px);
+      height: 2px;
+      transform-origin: right center;
+      background: linear-gradient(90deg, transparent, var(--sky));
+      box-shadow: 0 0 18px rgba(115, 204, 227, .8);
+      animation: scan 7s linear infinite;
+    }
+
+    .map-lines {
+      position: absolute;
+      inset: 9% 4%;
+      opacity: .16;
+      background:
+        repeating-radial-gradient(
+          ellipse at 70% 48%,
+          transparent 0 34px,
+          rgba(143, 218, 235, .5) 35px 36px,
+          transparent 37px 71px
+        );
+      transform: rotate(-9deg) scale(1.3);
+    }
+
+    .map-label {
+      position: absolute;
+      color: #cae8ef;
+      font: .67rem "DM Mono", monospace;
+      letter-spacing: .05em;
+      opacity: .75;
+    }
+
+    .map-label::before {
+      content: "";
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      margin: 0 6px 1px 0;
+      border-radius: 50%;
+      background: var(--sun);
+      box-shadow: 0 0 0 4px rgba(255, 189, 56, .14);
+    }
+
+    .label-one { top: 21%; right: 22%; }
+    .label-two { top: 44%; right: 11%; }
+    .label-three { bottom: 24%; right: 28%; }
+    .label-four { bottom: 16%; left: 21%; }
+
+    .app {
+      width: min(1240px, 100%);
+      min-height: 100vh;
+      margin: auto;
+      padding: 26px clamp(20px, 5vw, 68px);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      animation: enterDown .65s both;
+    }
+
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: white;
+      font-size: 1.35rem;
+      font-weight: 900;
+      letter-spacing: -.06em;
+      text-decoration: none;
+    }
+
+    .logo-mark {
+      width: 43px;
+      height: 43px;
+      display: grid;
+      place-items: center;
+      color: var(--ink);
+      background: var(--sun);
+      border: 3px solid white;
+      border-radius: 14px;
+      box-shadow: 4px 4px 0 var(--orange);
+      transform: rotate(-8deg);
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #d8ebf1;
+      font: .68rem "DM Mono", monospace;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .status-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #abea7b;
+      box-shadow: 0 0 0 0 rgba(171, 234, 123, .5);
+      animation: pulse 2s infinite;
+    }
+
+    .search-layout {
+      flex: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(350px, 500px);
+      gap: clamp(45px, 8vw, 125px);
+      align-items: center;
+      padding: 50px 0;
+    }
+
+    .hero {
+      max-width: 560px;
+      animation: enterLeft .8s .12s both;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 14px;
+      margin-bottom: 22px;
+      color: var(--ink);
+      background: var(--sun);
+      border-radius: 50px;
+      box-shadow: 4px 4px 0 rgba(0, 22, 43, .35);
+      font: .72rem "DM Mono", monospace;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: clamp(4rem, 7vw, 7rem);
+      font-weight:750;
+      letter-spacing: -.10005em;
+      line-height: .84;
+      &:hover{
+      text-shadow: 0 0 5px #e2c660;}
+      
+    }
+
+    .hero h1 span {
+      position: relative;
+      color: var(--sun);
+    }
+
+    .hero h1 span::after {
+      content: "";
+      position: absolute;
+      right: 0;
+      bottom: -10px;
+      left: 0;
+      height: 8px;
+      border-radius: 99px;
+      background: var(--orange);
+      transform: rotate(-2deg);
+    }
+
+    .hero-copy {
+      max-width: 430px;
+      margin: 32px 0;
+      color: #d7eaf0;
+      font-size: 1.08rem;
+      line-height: 1.65;
+    }
+
+    .radar-stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .radar-stat {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 13px;
+      border: 1px solid rgba(190, 231, 240, .3);
+      border-radius: 10px;
+      color: #dceef1;
+      background: rgba(4, 29, 53, .42);
+      font-size: .78rem;
+    }
+
+    .radar-stat i { color: var(--sun); }
+
+    .search-card {
+      position: relative;
+      padding: clamp(28px, 4vw, 46px);
+      color: var(--ink);
+      background: var(--cream);
+      border: 4px solid white;
+      border-radius: 29px;
+      box-shadow: 13px 15px 0 rgba(0, 22, 43, .4);
+      animation: enterRight .8s .2s both;
+    }
+
+    .search-card::before {
+      content: "";
+      position: absolute;
+      top: -27px;
+      right: -20px;
+      width: 84px;
+      height: 84px;
+      border: 3px solid white;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle, transparent 0 19%, var(--sun) 20% 23%, transparent 24% 39%, var(--orange) 40% 43%, transparent 44%);
+      box-shadow: 5px 5px 0 var(--orange);
+      transform: rotate(17deg);
+    }
+
+    .search-card h2 {
+      margin: 0;
+      font-size: clamp(2.5rem, 4vw, 3.35rem);
+      font-weight: 900;
+      letter-spacing: -.09em;
+      line-height: .9;
+    }
+
+    .search-card h2 span { color: var(--orange); }
+
+    .subtitle {
+      margin: 14px 0 29px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .search-label {
+      display: block;
+      margin: 0 0 8px 3px;
+      color: #36516c;
+      font-size: .74rem;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+     
+    }
+
+    .search-box {
+      display: flex;
+      align-items: center;
+      min-height: 62px;
+      padding-left: 16px;
+      border: 2px solid var(--line);
+      border-radius: 14px;
+      background: white;
+      transition: .22s ease;
+       &:hover{
+        scale: 1.03;
+      }
+    }
+
+    .search-box:focus-within {
+      border-color: var(--blue);
+      box-shadow: 4px 4px 0 #b4d9e7;
+      transform: translate(-2px, -2px);
+    }
+
+    .search-box > i {
+      color: var(--blue);
+      font-size: 1.1rem;
+    }
+
+    #city {
+      min-width: 0;
+      flex: 1;
+      height: 58px;
+      padding: 0 12px;
+      border: 0;
+      outline: 0;
+      color: var(--ink);
+      background: transparent;
+      font: 500 1rem Outfit, sans-serif;
+    }
+
+    #city::placeholder { color: #9caebe; }
+
+    .search-btn {
+      align-self: stretch;
+      min-width: 56px;
+      margin: 4px;
+      border: 0;
+      border-radius: 10px;
+      color: var(--ink);
+      background: var(--sun);
+      font-size: 1.1rem;
+      cursor: pointer;
+      transition: .2s ease;
+    }
+
+    .search-btn:hover {
+      color: white;
+      background: var(--orange);
+      transform: rotate(-4deg) scale(1.04);
+    }
+
+    #dropdown {
+      display: none;
+      max-height: 255px;
+      margin-top: 11px;
+      overflow-y: auto;
+      background: white;
+      border: 2px solid var(--line);
+      border-radius: 15px;
+    }
+
+    #dropdown.show { display: block; }
+
+    .item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      padding: 14px 16px;
+      border: 0;
+      border-bottom: 1px solid #e8edef;
+      color: var(--ink);
+      background: white;
+      font: 600 .92rem Outfit, sans-serif;
+      text-align: left;
+      cursor: pointer;
+      transition: .18s ease;
+    }
+
+    .item:last-child { border-bottom: 0; }
+
+    .item i { color: var(--orange); }
+
+    .item small {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: .75rem;
+      font-weight: 500;
+    }
+
+    .item:hover,
+    .item.selected {
+      background: #fff4d7;
+      padding-left: 21px;
+    }
+
+    .message {
+      display: none;
+      margin: 13px 0 0;
+      color: var(--muted);
+      font-size: .84rem;
+    }
+
+    .message.show { display: block; }
+
+    .footer-note {
+      margin: 24px 0 0;
+      color: #73879a;
+      font: .68rem "DM Mono", monospace;
+      letter-spacing: .04em;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    @keyframes scan {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes pulse {
+      70% { box-shadow: 0 0 0 8px rgba(171,234,123,0); }
+      100% { box-shadow: 0 0 0 0 rgba(171,234,123,0); }
+    }
+
+    @keyframes enterDown {
+      from { opacity: 0; transform: translateY(-20px); }
+    }
+
+    @keyframes enterLeft {
+      from { opacity: 0; transform: translateX(-45px); }
+    }
+
+    @keyframes enterRight {
+      from { opacity: 0; transform: translateX(45px); }
+    }
+
+    @media (max-width: 900px) {
+      .search-layout {
+        grid-template-columns: 1fr;
+        max-width: 570px;
+        margin: auto;
+        padding: 65px 0;
+      }
+
+      .hero { text-align: center; }
+      .hero-copy { margin-right: auto; margin-left: auto; }
+      .radar-stats { justify-content: center; }
+
+      .radar-rings {
+        top: 72%;
+        right: -22%;
+        width: 650px;
+      }
+
+      .scan-line { display: none; }
+    }
+
+    @media (max-width: 500px) {
+      .app { padding: 20px; }
+
+      .status {
+        max-width: 100px;
+        font-size: .58rem;
+        text-align: right;
+      }
+
+      .hero h1 { font-size: 3.75rem; }
+      .search-card { padding: 30px 21px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="radar-map" aria-hidden="true">
+    <div class="map-lines"></div>
+    <div class="radar-rings"></div>
+    <div class="scan-line"></div>
+
+    <span class="map-label label-one">London</span>
+    <span class="map-label label-two">Tokyo</span>
+    <span class="map-label label-three">Mumbai</span>
+    <span class="map-label label-four">New York</span>
+  </div>
+
+  <main class="app">
+    <header class="topbar">
+      <a class="logo" href="#">
+        <span class="logo-mark"><i class="bi bi-cloud-sun-fill"></i></span>
+        WeatherX
+      </a>
+
+      <div class="status">
+        <span class="status-dot"></span>
+        Live weather network
+      </div>
+    </header>
+
+    <div class="search-layout">
+      <section class="hero">
+        <div class="eyebrow">
+          <i class="bi bi-broadcast"></i>
+          Global weather radar
+        </div>
+
+        <h1>Find the sky<br>above <span>you.</span></h1>
+
+        <p class="hero-copy">
+          Search any city and get live weather, clear conditions, and the details that matter before you step outside.
+        </p>
+
+        <div class="radar-stats">
+          <div class="radar-stat"><i class="bi bi-globe2"></i> 120+ countries</div>
+          <div class="radar-stat"><i class="bi bi-lightning-charge-fill"></i> Live alerts</div>
+          <div class="radar-stat"><i class="bi bi-geo-alt-fill"></i> City search</div>
+        </div>
+      </section>
+
+      <section class="search-card">
+        <h2>Track your <span>weather.</span></h2>
+        <p class="subtitle">Type a city name and choose the correct location from the live suggestions.</p>
+
+        <form id="weatherForm" role="search" novalidate>
+          <label class="search-label" for="city">Search a city</label>
+
+          <div class="search-box">
+            <i class="bi bi-search"></i>
+            <input
+              id="city"
+              type="text"
+              placeholder="Mumbai, London, Tokyo..."
+              autocomplete="off"
+              aria-autocomplete="list"
+              aria-controls="dropdown"
+              aria-expanded="false"
+            >
+            <button class="search-btn" type="submit" aria-label="Search weather">
+              <i class="bi bi-arrow-right"></i>
+            </button>
+          </div>
+        </form>
+
+        <div id="dropdown" role="listbox" aria-label="City suggestions"></div>
+        <p id="message" class="message" aria-live="polite"></p>
+
+        <p class="footer-note">Powered by live WeatherAPI data</p>
+      </section>
+    </div>
+  </main>
+
+  <script>
+  const searchBox = document.getElementById("city");
+  const dropdown = document.getElementById("dropdown");
+  const form = document.getElementById("weatherForm");
+  const message = document.getElementById("message");
+
+  let timer;
+  let results = [];
+  let selectedIndex = -1;
+
+  function getCookie(name) {
+    let cookieValue = null;
+
+    document.cookie.split(";").forEach((cookie) => {
+      cookie = cookie.trim();
+
+      if (cookie.startsWith(name + "=")) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+      }
+    });
+
+    return cookieValue;
+  }
+
+  function goToWeather(city) {
+    if (city.trim()) {
+      window.location.href = `/weather/?city=${encodeURIComponent(city.trim())}`;
+    }
+  }
+
+  function clearResults() {
+    dropdown.innerHTML = "";
+    dropdown.classList.remove("show");
+    searchBox.setAttribute("aria-expanded", "false");
+    selectedIndex = -1;
+    results = [];
+  }
+
+  function showMessage(text, icon = "bi-info-circle") {
+    message.innerHTML = `<i class="bi ${icon}"></i> ${text}`;
+    message.classList.add("show");
+  }
+
+  function selectItem(index) {
+    dropdown.querySelectorAll(".item").forEach((item, itemIndex) => {
+      item.classList.toggle("selected", itemIndex === index);
+    });
+
+    selectedIndex = index;
+  }
+
+  function renderResults(data) {
+    clearResults();
+
+    if (!data.res || data.res.length === 0) {
+      showMessage(
+        "No matching cities found. Try a different spelling.",
+        "bi-geo-alt"
+      );
+      return;
+    }
+
+    message.classList.remove("show");
+    results = data.res;
+
+    results.forEach((city, index) => {
+      const item = document.createElement("button");
+
+      item.type = "button";
+      item.className = "item";
+      item.setAttribute("role", "option");
+
+      item.innerHTML = `
+        <i class="bi bi-geo-alt-fill"></i>
+        <span>
+          ${city.name}
+          <small>${city.country}</small>
+        </span>
+      `;
+
+      item.addEventListener("click", () => goToWeather(city.name));
+      item.addEventListener("mouseenter", () => selectItem(index));
+
+      dropdown.appendChild(item);
+    });
+
+    dropdown.classList.add("show");
+    searchBox.setAttribute("aria-expanded", "true");
+  }
+
+  async function findCities() {
+    const city = searchBox.value.trim();
+
+    clearResults();
+    message.classList.remove("show");
+
+    if (!city) return;
+
+    showMessage("Scanning live locations...", "bi-arrow-repeat");
+
+    try {
+      const response = await fetch("/city/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCookie("csrftoken")
+        },
+        body: JSON.stringify({ city })
+      });
+
+      // User is not logged in: send them to login page.
+      if (response.status === 401) {
+        const next = encodeURIComponent(
+          window.location.pathname + window.location.search
+        );
+
+        window.location.href = `/login/?next=${next}`;
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error("Search request failed");
+      }
+
+      const data = await response.json();
+      renderResults(data);
+
+    } catch (error) {
+      showMessage(
+        "Could not load city suggestions. Try again.",
+        "bi-exclamation-circle"
+      );
+    }
+  }
+
+  searchBox.addEventListener("input", () => {
+    clearTimeout(timer);
+    timer = setTimeout(findCities, 350);
+  });
+
+  searchBox.addEventListener("keydown", (event) => {
+    const items = dropdown.querySelectorAll(".item");
+
+    if (event.key === "ArrowDown" && items.length) {
+      event.preventDefault();
+      selectItem((selectedIndex + 1) % items.length);
+    }
+
+    if (event.key === "ArrowUp" && items.length) {
+      event.preventDefault();
+      selectItem(
+        selectedIndex <= 0 ? items.length - 1 : selectedIndex - 1
+      );
+    }
+
+    if (event.key === "Enter" && selectedIndex >= 0) {
+      event.preventDefault();
+      goToWeather(results[selectedIndex].name);
+    }
+
+    if (event.key === "Escape") {
+      clearResults();
+    }
+  });
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+
+    if (selectedIndex >= 0 && results[selectedIndex]) {
+      goToWeather(results[selectedIndex].name);
+    } else if (searchBox.value.trim()) {
+      goToWeather(searchBox.value);
+    } else {
+      showMessage("Type a city name first.", "bi-search");
+      searchBox.focus();
+    }
+  });
+</script>
+</body>
+</html>

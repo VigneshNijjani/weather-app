@@ -79,10 +79,10 @@ WSGI_APPLICATION = 'wheater.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE':'django.db.backends.mysql',
-        'NAME':env("NAME"),
-        'USER':env("USER"),
-        'HOST':env("HOST"),
-        'PORT':env('PORT'),
+        'NAME':env("DB_NAME"),
+        'USER':env("DB_USER"),
+        'HOST':env("DB_HOST"),
+        'PORT':env('DB_PORT'),
         'PASSWORD':env('PASSWORD')
     }
 }

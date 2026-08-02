@@ -27,7 +27,7 @@ SECRET_KEY = env("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env.bool("DEBUG", default=False)
 
-ALLOWED_HOSTS = [ "127.0.0.1","localhost",'weather-app-ki0g.onrender.com',]
+ALLOWED_HOSTS = [ "127.0.0.1","localhost",'weather-app-aio7.onrender.com']
 
 
 # Application definition
